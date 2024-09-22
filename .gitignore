@@ -3,3 +3,8 @@
 *.txt
 
 *.xlsx
+*.xls
+*.xlsb
+
+.vscode/settings.json
+.vscode/

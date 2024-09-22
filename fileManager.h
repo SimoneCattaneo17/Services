@@ -1,56 +1,48 @@
 #include <iostream>
 #include <Windows.h>
 #include <winsvc.h>
+#include <winnetwk.h>
 #include <filesystem>
 #include <string.h>
 #include <string>
 #include <fstream>
+#include <list>
 
 using namespace std;
 
 int counter = 0;
 
-//local computer, all access - test purpose
-SC_HANDLE connectLocalComputer(SC_HANDLE schSCManager) {
-
-    schSCManager = OpenSCManager( 
-        NULL,
-        NULL,
-        SC_MANAGER_ALL_ACCESS
-    );
-
-    return schSCManager;
-}
-
+//recursive - checks if new fileName already exists
 void checkDuplicateFile(string &fileName, string extension) {
     string tmpFileName = fileName;
     string path = tmpFileName + '.' + extension;
-/*
-    cout << "counter: " << to_string(counter) << endl;
-    cout << "Path: " << path << endl;
-*/
+
     if(std::filesystem::exists(path)) {
         counter++;
         string path = tmpFileName + '_' + to_string(counter) + '.' + extension;
         if(std::filesystem::exists(path)) {
             tmpFileName = tmpFileName + '_' + to_string(counter);
-            //cout << "FileName: " << tmpFileName << endl;
             checkDuplicateFile(fileName, extension);
         }
         else {
             fileName = fileName + '_' + to_string(counter);
-            //cout << "File renamed to: " << fileName << endl;
         }
     }
 }
 
-void fileRenamer() {
-    string source = "//HOL-PCL-996/c$/Database/Unes Scato Ord.xlsx"; //change this to test the program with other computers
-    //string source = "Database/Unes Scato Ord.xlsx";        //path not final, just for test
+//renames file accordingly to checkDuplicatefile
+void fileRenamer(string fileGiven) {
+    string source;
+    ifstream serverPath;
+    serverPath.open("./serverPath.txt");
+    getline(serverPath, source);
+    serverPath.close();
+
+    source = source + fileGiven;
     string delimiter = ".";
     string tmp[2];
 
-    //split using . as a delimiter > add the date at the end of [0] and then append [1]
+    //split using . as a delimiter > add the date at the end of tmp[0] and then append tmp[1]
     //needs to work with xlsx, xls and xlsb when program is final
     
     //no string.split() in c++
@@ -61,7 +53,7 @@ void fileRenamer() {
     //source needs to be rebuilt
     source = tmp[0] + '.' + tmp[1];
 
-    //date
+    //today's date
     time_t t = time(nullptr);
     tm *const pTInfo = localtime(&t);
 
@@ -79,30 +71,44 @@ void fileRenamer() {
     checkDuplicateFile(tmp[0], tmp[1]);
 
     string target = tmp[0] + '.' + tmp[1];
-    //cout << "target: " << target << endl;
     rename(source.c_str(), target.c_str());
 }
 
-//as of now moves a file from a local folder to another local folder - trying out with another computer
-void fileTransfer() {
-    fileRenamer();
+//moves sourceFile in database folder on remote computer/server
+void fileTransfer(string fileGiven) {
+    fileRenamer(fileGiven);
 
-    std::filesystem::path sourceFile = "Unes Scato Ord.xlsx";     //to be changed, not final; source will be gathered from download
-    std::filesystem::path targetParent = "//HOL-PCL-996/c$/Database";            //to be changed, not final; target will be on Server
+    std::filesystem::path sourceFile = fileGiven;
+    
+    string targetParent;
+    ifstream serverPath;
+    serverPath.open("./serverPath.txt");
+    getline(serverPath, targetParent);
+    serverPath.close();
+    
     auto target = targetParent / sourceFile.filename();
-/*
-    cout << sourceFile;
-    cout << '\n';
-    cout << target;
-    cout << '\n';
-*/
+
     try {
         //don't know if overwrite is good, probably not
         //anyway, before copying the file there is another function that changes its name so it should be ok
-        //best thing would be to check existence and in case throw an error
+        //best thing would be to check existence and eventually case throw an error
         std::filesystem::copy_file(sourceFile, target, std::filesystem::copy_options::overwrite_existing);
     }
     catch(exception& e) {
         cout << e.what();
     }
+}
+
+//gets list of files used
+list<string> inputFileName() {
+    list<string> fileTargets;
+    ifstream file;
+    file.open("./targetFiles.txt");
+
+    string tmp;
+    while(std::getline(file, tmp)) {
+        fileTargets.push_back(tmp);
+    }
+
+    return fileTargets;
 }
